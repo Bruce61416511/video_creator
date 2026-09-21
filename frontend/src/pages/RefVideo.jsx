@@ -108,7 +108,7 @@ export default function RefVideo() {
   const [ratio, setRatio] = useState(draft?.ratio || '9:16')
   const [batchRunning, setBatchRunning] = useState(false)
   const [merging, setMerging] = useState(false)
-  const [mergedUrl, setMergedUrl] = useState(null)
+  const [mergedUrl, setMergedUrl] = useState(draft?.mergedUrl || null)
   const [optimizingShotIds, setOptimizingShotIds] = useState(new Set())
   const [parsingScript, setParsingScript] = useState(false)
   const [expandedBreakdownId, setExpandedBreakdownId] = useState(null)
@@ -133,13 +133,14 @@ export default function RefVideo() {
           shots,
           resolution,
           ratio,
+          mergedUrl,
         }))
       } catch (e) {
         console.warn('[draft] 保存草稿失败（可能超出 localStorage 容量）:', e.message)
       }
     }, 400)
     return () => clearTimeout(timer)
-  }, [images, audioFile, rawScript, scriptTitle, scriptTotalDuration, voiceoverTotal, shots, resolution, ratio])
+  }, [images, audioFile, rawScript, scriptTitle, scriptTotalDuration, voiceoverTotal, shots, resolution, ratio, mergedUrl])
 
   // ===== 清空本地草稿（连参考图一起重置）=====
   const handleClearDraft = () => {
