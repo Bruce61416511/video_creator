@@ -6,8 +6,13 @@ async function request(url, options = {}) {
     ...options,
   })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || 'Request failed')
+    const err = await res.json().catch(() => null)
+    if (err && err.detail) throw new Error(err.detail)
+    // 5xx 且拿不到 JSON body：多半是后端没启动/挂了，vite 代理连不上时返回的就是这个
+    if (res.status >= 500) {
+      throw new Error(`后端服务无响应（HTTP ${res.status}）。请确认 8002 端口的后端是否在运行。`)
+    }
+    throw new Error(res.statusText || `请求失败（HTTP ${res.status}）`)
   }
   return res.json()
 }
@@ -57,4 +62,17 @@ export const optimizeApi = {
   // 单镜头重新估时长 + 润色
   optimizeShot: ({ prompt, voiceover, duration }) =>
     request('/optimize-shot', { method: 'POST', body: JSON.stringify({ prompt, voiceover, duration }) }),
+}
+
+// ========== 后处理（调色、合并）==========
+
+export const postprocessApi = {
+  // 合并多个视频
+  merge: ({ video_urls, color_preset = 'natural', transition = 'none', transition_duration = 0.5 }) =>
+    request('/postprocess/merge', {
+      method: 'POST',
+      body: JSON.stringify({ video_urls, color_preset, transition, transition_duration }),
+    }),
+  // 获取可用的色调预设和转场效果
+  getPresets: () => request('/postprocess/presets'),
 }

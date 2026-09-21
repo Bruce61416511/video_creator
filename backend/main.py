@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from routes.generation import router as generation_router
 from routes.config import router as config_router
 from routes.optimize import router as optimize_router
+from routes.postprocess import router as postprocess_router
 
 app = FastAPI(title="万相视频生成工具", version="1.0.0")
 
@@ -29,6 +30,7 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 app.include_router(generation_router, prefix="/api")
 app.include_router(config_router, prefix="/api")
 app.include_router(optimize_router, prefix="/api")
+app.include_router(postprocess_router, prefix="/api/postprocess")
 
 
 @app.get("/api/health")

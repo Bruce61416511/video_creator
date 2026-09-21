@@ -20,6 +20,18 @@ backend/*.log
 backend/data.db
 backend/*.sqlite
 
+# 合并 / 导出的视频（运行时产物，不入库）
+backend/*.mp4
+backend/**/*.mp4
+
+# moviepy 写视频时的临时音轨文件（正常会自动删除，进程被中断会残留）
+# 例：backend/merged_a91fca3eTEMP_MPY_wvf_snd.mp4
+**/TEMP_MPY*
+TEMP_MPY*
+
+# 本地备份文件（如手工改配置前的 .bak）
+*.bak
+
 # ================== 环境 / 敏感 ==================
 .env
 *.env

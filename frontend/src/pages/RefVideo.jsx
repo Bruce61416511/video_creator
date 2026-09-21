@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { generationApi, optimizeApi } from '../services/api'
+import { useState, useRef, useEffect } from 'react'
+import { generationApi, optimizeApi, postprocessApi } from '../services/api'
 import {
   showMessage, textareaStyle, inputStyle, btnPrimary, btnSecondary, labelStyle, cardStyle,
   shotCardStyle, shotHeaderStyle, shotStatusBadgeStyle, shotBorderColor,
@@ -22,23 +22,93 @@ const SAMPLE_SCRIPT = `# 练后酸痛不想动？别傻喝蛋白粉了，试试�
 | 0:06 - 0:10 \\| 4s - 快速闪回镜头：一瓶市售含糖果汁、一瓶普通矿泉水，画面上快速划过红色的"X"。然后切回演员，她对着镜头摇了摇手里的蓝莓饮。 | 喝那些糖水饮料就更别提了。想恢复快又不给身体添负担，得喝点聪明的。 | 景别：近景 / 镜头运动：快速切换 / 机位角度：平视 |
 `
 
+// 草稿本地存储：刷新/误关页面后能原样恢复（此前无任何持久化，一刷新全丢）
+const STORAGE_KEY = 'refvideo_draft_v1'
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const d = JSON.parse(raw)
+    if (!d || typeof d !== 'object') return null
+    // 恢复时把刷新中断的「生成中」标记为失败，否则按钮会一直禁用卡住
+    d.shots = (Array.isArray(d.shots) ? d.shots : []).map(s =>
+      s && s.status === 'generating'
+        ? { ...s, status: 'failed', error: '页面刷新导致中断，请重新生成' }
+        : s
+    )
+    return d
+  } catch (e) {
+    console.warn('[draft] 读取草稿失败:', e.message)
+    return null
+  }
+}
+
+// 解析提示词里被引用到的参考图编号（只保留合法范围，去重升序）。返回 [] 表示没写任何「图N」。
+function resolveReferencedIndices(prompt, total) {
+  const nums = [...String(prompt || '').matchAll(/图\s*([1-9])/g)]
+    .map(m => parseInt(m[1], 10))
+    .filter(n => n >= 1 && n <= total)
+  return [...new Set(nums)].sort((a, b) => a - b)
+}
+
+// 该分镜实际会发送几张参考图：引用了 N 个就发 N 张；没引用则全量发送
+function resolveUsedImageCount(prompt, total) {
+  const refs = resolveReferencedIndices(prompt, total)
+  return refs.length ? refs.length : total
+}
+
+// 提示词里是否出现了任何「图N」引用
+function hasImageRef(prompt) {
+  return /图\s*[1-9]/.test(String(prompt || ''))
+}
+
+/**
+ * 决定本镜实际发送哪些参考图，并同步返回重排过图号的提示词。
+ *
+ * 模型是按 media 数组顺序把图对应成 图1/图2/… 的，所以「挑着发」时必须把提示词里的
+ * 图号一起重排，否则指代会错位。例：提示词引用「图1中的女子」+「图3中的房间」，
+ * 实际只发这 2 张，提示词里的「图3」会被改写成「图2」。
+ *
+ * 提示词里一个「图N」都没写时，维持原行为全量发送、不改写。
+ */
+function resolveMediaPlan(prompt, images) {
+  const total = images.length
+  const refs = resolveReferencedIndices(prompt, total)
+  if (refs.length === 0) {
+    return { mediaImages: images, prompt: String(prompt || ''), refs: [] }
+  }
+  const mediaImages = refs.map(n => images[n - 1])
+  const rewritten = String(prompt || '').replace(/图\s*([1-9])/g, (matched, d) => {
+    const pos = refs.indexOf(parseInt(d, 10))
+    return pos >= 0 ? `图${pos + 1}` : matched
+  })
+  return { mediaImages, prompt: rewritten, refs }
+}
+
 export default function RefVideo() {
+  // 用 useState 的惰性初始化：只在首次挂载时读一次 localStorage，
+  // 不能写成 useRef(loadDraft()).current —— 那样每次渲染都会重复解析 JSON
+  const [draft] = useState(loadDraft)
+
   // ===== 全局素材 =====
-  const [images, setImages] = useState([])
-  const [audioFile, setAudioFile] = useState(null)
+  const [images, setImages] = useState(draft?.images || [])
+  const [audioFile, setAudioFile] = useState(draft?.audioFile || null)
   const [imageUrlInput, setImageUrlInput] = useState('')
 
   // ===== 分镜脚本 =====
-  const [rawScript, setRawScript] = useState('')
-  const [scriptTitle, setScriptTitle] = useState('')
-  const [scriptTotalDuration, setScriptTotalDuration] = useState(null)
-  const [voiceoverTotal, setVoiceoverTotal] = useState(0)
-  const [shots, setShots] = useState([])
+  const [rawScript, setRawScript] = useState(draft?.rawScript || '')
+  const [scriptTitle, setScriptTitle] = useState(draft?.scriptTitle || '')
+  const [scriptTotalDuration, setScriptTotalDuration] = useState(draft?.scriptTotalDuration ?? null)
+  const [voiceoverTotal, setVoiceoverTotal] = useState(draft?.voiceoverTotal || 0)
+  const [shots, setShots] = useState(draft?.shots || [])
 
   // ===== 全局参数 & 批量生成 =====
-  const [resolution, setResolution] = useState('720P')
-  const [ratio, setRatio] = useState('16:9')
+  const [resolution, setResolution] = useState(draft?.resolution || '720P')
+  const [ratio, setRatio] = useState(draft?.ratio || '9:16')
   const [batchRunning, setBatchRunning] = useState(false)
+  const [merging, setMerging] = useState(false)
+  const [mergedUrl, setMergedUrl] = useState(null)
   const [optimizingShotIds, setOptimizingShotIds] = useState(new Set())
   const [parsingScript, setParsingScript] = useState(false)
   const [expandedBreakdownId, setExpandedBreakdownId] = useState(null)
@@ -47,6 +117,45 @@ export default function RefVideo() {
   const [showGlossary, setShowGlossary] = useState(false)
   const pollRef = useRef({})         // shotId -> intervalId
   const cancelRef = useRef(false)    // 取消批量生成的信号
+
+  // 草稿自动落盘（防抖 400ms，避免每敲一个字都写一次）
+  // 注意：上传文件的 preview 是 blob: URL，刷新后失效，这里统一存后端 /uploads/ 地址
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          images: images.map(({ url, type, name }) => ({ url, type, name, preview: url })),
+          audioFile: audioFile ? { url: audioFile.url, name: audioFile.name, preview: audioFile.url } : null,
+          rawScript,
+          scriptTitle,
+          scriptTotalDuration,
+          voiceoverTotal,
+          shots,
+          resolution,
+          ratio,
+        }))
+      } catch (e) {
+        console.warn('[draft] 保存草稿失败（可能超出 localStorage 容量）:', e.message)
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [images, audioFile, rawScript, scriptTitle, scriptTotalDuration, voiceoverTotal, shots, resolution, ratio])
+
+  // ===== 清空本地草稿（连参考图一起重置）=====
+  const handleClearDraft = () => {
+    if (!window.confirm('清空草稿会删除本地保存的全部内容（参考图、脚本、分镜、提示词），确定？')) return
+    try { localStorage.removeItem(STORAGE_KEY) } catch (e) { /* ignore */ }
+    setImages([])
+    setAudioFile(null)
+    setImageUrlInput('')
+    setRawScript('')
+    setScriptTitle('')
+    setScriptTotalDuration(null)
+    setVoiceoverTotal(0)
+    setShots([])
+    showMessage('success', '草稿已清空')
+  }
+
 
   // ===== 单镜头提示词优化（调 LLM：重新估时长 + 润色）=====
   const handleOptimizeShot = async (shotId) => {
@@ -67,7 +176,15 @@ export default function RefVideo() {
         patch.durationBreakdown = res.duration_breakdown
       }
       updateShot(shotId, patch)
-      showMessage('success', `#${shot.index} 已优化${res.duration !== shot.duration ? `（时长 ${shot.duration}s → ${res.duration}s）` : ''}`)
+      // 保险丝：优化后如果「图N」引用变多了，说明 LLM 把不该引用的参考图写回来了
+      const refBefore = resolveUsedImageCount(shot.prompt, images.length)
+      const refAfter = resolveUsedImageCount(res.prompt, images.length)
+      if (refAfter > refBefore) {
+        showMessage('warning',
+          `#${shot.index} 已优化，但优化把「图${refAfter}」引用写回来了 —— 参考图会从 ${refBefore} 张变成 ${refAfter} 张，可能又把产品图发给模型。请手动删掉提示词里的「图${refAfter}」。`)
+      } else {
+        showMessage('success', `#${shot.index} 已优化${res.duration !== shot.duration ? `（时长 ${shot.duration}s → ${res.duration}s）` : ''}`)
+      }
     } catch (e) {
       showMessage('error', '优化失败: ' + e.message)
     } finally {
@@ -88,6 +205,7 @@ export default function RefVideo() {
     let successCount = 0
     let failCount = 0
     let durationChanged = 0
+    let refIncreased = 0
     for (const shot of targets) {
       try {
         const res = await optimizeApi.optimizeShot({
@@ -104,14 +222,18 @@ export default function RefVideo() {
           patch.durationBreakdown = res.duration_breakdown
         }
         updateShot(shot.id, patch)
+        // 保险丝：优化后「图N」引用变多 = LLM 把不该引用的参考图写回来了
+        if (resolveUsedImageCount(res.prompt, images.length) > resolveUsedImageCount(shot.prompt, images.length)) {
+          refIncreased++
+        }
         successCount++
       } catch (e) {
         failCount++
       }
     }
     setOptimizingShotIds(new Set())
-    showMessage(failCount === 0 ? 'success' : 'warning',
-      `优化完成：成功 ${successCount} 个${durationChanged > 0 ? `，其中 ${durationChanged} 个时长被调整` : ''}${failCount > 0 ? `，失败 ${failCount} 个` : ''}`)
+    showMessage(failCount > 0 || refIncreased > 0 ? 'warning' : 'success',
+      `优化完成：成功 ${successCount} 个${durationChanged > 0 ? `，其中 ${durationChanged} 个时长被调整` : ''}${failCount > 0 ? `，失败 ${failCount} 个` : ''}${refIncreased > 0 ? `。⚠️ 有 ${refIncreased} 个分镜的「图N」引用被优化新增了（卡片角标已变色），可能多送参考图给模型，请检查提示词` : ''}`)
   }
 
   // ===== 更新单个镜头状态的辅助函数 =====
@@ -198,9 +320,16 @@ export default function RefVideo() {
         return resolve({ cancelled: true })
       }
 
-      // 构造 media：全局参考图 + 音色样本（reference_voice 是 media 元素的字段，不是独立项）
+      // 按提示词里引用的「图N」挑选参考图，并把提示词里的图号重排成连续编号（见 resolveMediaPlan）。
+      // 例：只写「图1中的女子」→ 只发第 1 张（产品图不会被送给模型）
+      //     写「图1中的女子」+「图3中的房间」→ 只发第 1、3 张，提示词里的「图3」自动改写为「图2」
+      //     没写任何「图N」→ 维持原行为，全量发送
+      const plan = resolveMediaPlan(shot.prompt, images)
+      const usedImages = plan.mediaImages
+
+      // 构造 media：筛选后的参考图 + 音色样本（reference_voice 是 media 元素的字段，不是独立项）
       // 文档："该音频仅参考音色，与说话内容无关"，1-10 秒即可，挂在第一张参考图上
-      const media = images.map((img, i) => {
+      const media = usedImages.map((img, i) => {
         const item = { type: img.type, url: img.url }
         if (i === 0 && audioFile) item.reference_voice = audioFile.url
         return item
@@ -215,7 +344,8 @@ export default function RefVideo() {
       updateShot(shot.id, { status: 'generating', error: '' })
 
       generationApi.r2v({
-        prompt: shot.prompt,
+        // 用重排过图号的提示词，保证文字里的「图N」和实际发送的 media 顺序一致
+        prompt: plan.prompt,
         media,
         resolution,
         ratio,
@@ -293,6 +423,47 @@ export default function RefVideo() {
     showMessage('info', '已发送取消信号，当前正在生成的镜头会跑完')
   }
 
+  // ===== 合并所有分镜视频 =====
+  const handleMergeVideos = async () => {
+    const doneShots = shots.filter(s => s.status === 'done' && s.videoUrl)
+    if (doneShots.length === 0) {
+      return showMessage('warning', '没有已完成的分镜视频')
+    }
+    if (doneShots.length !== shots.length) {
+      if (!window.confirm(`当前只有 ${doneShots.length}/${shots.length} 个分镜完成，确定要合并已完成的吗？`)) {
+        return
+      }
+    }
+
+    setMerging(true)
+    try {
+      // 按顺序排列视频 URL
+      const videoUrls = doneShots
+        .sort((a, b) => a.index - b.index)
+        .map(s => s.videoUrl)
+
+      const result = await postprocessApi.merge({
+        video_urls: videoUrls,
+        color_preset: 'natural',
+        transition: 'none',
+      })
+
+      if (result.url) {
+        // 构建完整 URL
+        const fullUrl = window.location.origin + result.url
+        setMergedUrl(fullUrl)
+        // 复制到剪贴板
+        await navigator.clipboard.writeText(fullUrl)
+        showMessage('success', `合并完成！URL 已复制到剪贴板`)
+      }
+    } catch (err) {
+      console.error('合并失败:', err)
+      showMessage('error', `合并失败: ${err.message}`)
+    } finally {
+      setMerging(false)
+    }
+  }
+
   // ===== 统计 =====
   const doneCount = shots.filter(s => s.status === 'done').length
   const failedCount = shots.filter(s => s.status === 'failed').length
@@ -306,6 +477,9 @@ export default function RefVideo() {
         <div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#142528' }}>参考视频 · 脚本分镜模式</h2>
           <span style={{ fontSize: 13, color: '#8c8c8c' }}>粘贴完整脚本 → 一键拆成分镜 → 串行生成每段视频 → 拼接成片</span>
+          <div style={{ fontSize: 12, color: '#0d7a5f', marginTop: 4 }}>
+            💾 草稿已自动保存到本地，刷新 / 误关页面都不会丢
+          </div>
         </div>
         <button
           onClick={() => setShowGlossary(true)}
@@ -425,7 +599,13 @@ export default function RefVideo() {
 
       {/* ===== 卡片 1：全局素材 ===== */}
       <div style={{ ...cardStyle, marginBottom: 16 }}>
-        <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14 }}>📷 参考图（所有镜头共用，最多 {MAX_IMAGES} 张）</div>
+        <div style={{ fontWeight: 600, fontSize: 15 }}>📷 参考图（所有镜头共用，最多 {MAX_IMAGES} 张）</div>
+        <div style={{ fontSize: 12, color: '#8c8c8c', margin: '6px 0 14px' }}>
+          角色约定：<b>图1 = 人物，图2 = 产品，图3 / 图4 = 道具场景</b>（按上传顺序编号）。
+          发送规则：每个分镜只发它提示词里引用到的「图N」，并且提示词里的图号会自动重排成连续编号 ——
+          只写「图1中的女子」就只发第 1 张；写「图1中的女子」+「图3中的房间」就只发第 1、3 张（产品图不会被带上）。
+          没写任何「图N」则全部发送（卡片角标会标成橙色「全发」提醒你）。
+        </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
           {images.map((img, i) => (
             <div key={i} style={{ width: 140, border: '1px solid #e2eeea', borderRadius: 10, overflow: 'hidden', background: '#fafffe' }}>
@@ -497,7 +677,8 @@ export default function RefVideo() {
           <div style={{ fontWeight: 600, fontSize: 15 }}>📜 分镜脚本（Markdown 表格）</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleLoadSample} style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12 }}>载入示例</button>
-            <button onClick={handleClearScript} disabled={batchRunning} style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12, borderColor: '#c53030', color: '#c53030' }}>清空</button>
+            <button onClick={handleClearScript} disabled={batchRunning} style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12, borderColor: '#c53030', color: '#c53030' }}>清空脚本</button>
+            <button onClick={handleClearDraft} disabled={batchRunning} style={{ ...btnSecondary, padding: '6px 12px', fontSize: 12, borderColor: '#c53030', color: '#c53030' }}>清空草稿</button>
           </div>
         </div>
 
@@ -577,6 +758,21 @@ export default function RefVideo() {
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#005d50' }}>#{shot.index}</span>
                   <span style={{ fontSize: 13, color: '#142528' }}>
                     {shot.start && shot.end ? `${shot.start} - ${shot.end}` : `分镜 #${shot.index}`}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                      color: hasImageRef(shot.prompt) ? '#0d7a5f' : '#b45309',
+                      background: hasImageRef(shot.prompt) ? '#eef7f5' : '#fdf3e3',
+                    }}
+                    title={hasImageRef(shot.prompt)
+                      ? `本镜只发送第 ${resolveReferencedIndices(shot.prompt, images.length).join('、')} 张参考图（共 ${images.length} 张）。提示词里的图号已自动重排为 图1…图${resolveReferencedIndices(shot.prompt, images.length).length}，与发送顺序一致。`
+                      : `提示词里没有任何「图N」引用，按规则会全部发送（共 ${images.length} 张）。想只发某几张，就把提示词写成「图1中的女子…」这种写法。`}
+                  >
+                    参考图 ×{resolveUsedImageCount(shot.prompt, images.length)}/{images.length}
+                    {hasImageRef(shot.prompt)
+                      ? `（图${resolveReferencedIndices(shot.prompt, images.length).join('、图')}）`
+                      : ' 全发'}
                   </span>
                   {editingDurationId === shot.id ? (
                     <input
@@ -681,7 +877,7 @@ export default function RefVideo() {
               </div>
 
               <div style={{ marginBottom: 8 }}>
-                <div style={{ ...labelStyle, fontSize: 12 }}>口播台词（已自动拼入提示词）</div>
+                <div style={{ ...labelStyle, fontSize: 12 }}>口播台词（只用于估时长和✨优化，不会直接进提示词；改台词请同步改上面的提示词）</div>
                 <textarea
                   rows={1}
                   value={shot.voiceover}
@@ -737,8 +933,30 @@ export default function RefVideo() {
               <div style={progressBarFillStyle(progressRatio)} />
             </div>
             {shots.length > 0 && doneCount === shots.length && (
-              <div style={{ marginTop: 12, fontSize: 13, color: '#0d7a5f', fontWeight: 600 }}>
-                🎉 全部镜头已生成完成！每段视频可以在上方卡片里单独预览和下载。
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 13, color: '#0d7a5f', fontWeight: 600 }}>
+                  🎉 全部镜头已生成完成！
+                </span>
+                <button
+                  onClick={handleMergeVideos}
+                  disabled={merging}
+                  style={{
+                    ...btnPrimary,
+                    padding: '6px 16px',
+                    fontSize: 13,
+                    opacity: merging ? 0.6 : 1,
+                  }}
+                >
+                  {merging ? '⏳ 合并中...' : '🎬 合并视频并复制URL'}
+                </button>
+              </div>
+            )}
+            {mergedUrl && (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: '#e6f7f2', borderRadius: 8, border: '1px solid #b3e0d4' }}>
+                <div style={{ fontSize: 12, color: '#0d7a5f', marginBottom: 6, fontWeight: 600 }}>✅ 合并完成，URL 已复制：</div>
+                <a href={mergedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#005d50', wordBreak: 'break-all' }}>
+                  {mergedUrl}
+                </a>
               </div>
             )}
           </div>
