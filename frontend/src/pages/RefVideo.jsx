@@ -42,6 +42,8 @@ export default function RefVideo() {
   const [optimizingShotIds, setOptimizingShotIds] = useState(new Set())
   const [parsingScript, setParsingScript] = useState(false)
   const [expandedBreakdownId, setExpandedBreakdownId] = useState(null)
+  const [editingDurationId, setEditingDurationId] = useState(null)
+  const [editingDurationValue, setEditingDurationValue] = useState('')
   const pollRef = useRef({})         // shotId -> intervalId
   const cancelRef = useRef(false)    // 取消批量生成的信号
 
@@ -459,12 +461,40 @@ export default function RefVideo() {
                   <span style={{ fontSize: 13, color: '#142528' }}>
                     {shot.start && shot.end ? `${shot.start} - ${shot.end}` : `分镜 #${shot.index}`}
                   </span>
-                  <span
-                    style={{ fontSize: 12, color: '#142528', padding: '2px 10px', background: '#eef7f5', borderRadius: 10, fontWeight: 600 }}
-                    title="基于动作+台词+留白估算，点 ✨ 优化 会重新估"
-                  >
-                    {shot.duration}s
-                  </span>
+                  {editingDurationId === shot.id ? (
+                    <input
+                      type="number"
+                      min={2}
+                      max={15}
+                      value={editingDurationValue}
+                      autoFocus
+                      onChange={(e) => setEditingDurationValue(e.target.value)}
+                      onBlur={() => {
+                        const v = parseInt(editingDurationValue, 10)
+                        if (v && v >= 2 && v <= 15 && v !== shot.duration) {
+                          updateShot(shot.id, { duration: v })
+                          showMessage('success', `#${shot.index} 时长已改为 ${v}s`)
+                        }
+                        setEditingDurationId(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.target.blur()
+                        if (e.key === 'Escape') setEditingDurationId(null)
+                      }}
+                      style={{ width: 50, fontSize: 12, padding: '2px 6px', border: '1px solid #0d7a5f', borderRadius: 10, outline: 'none', textAlign: 'center' }}
+                    />
+                  ) : (
+                    <span
+                      style={{ fontSize: 12, color: '#142528', padding: '2px 10px', background: '#eef7f5', borderRadius: 10, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}
+                      title="点击可手动修改时长"
+                      onClick={() => {
+                        setEditingDurationId(shot.id)
+                        setEditingDurationValue(String(shot.duration))
+                      }}
+                    >
+                      {shot.duration}s ✎
+                    </span>
+                  )}
                   {shot.durationBreakdown && (
                     <span
                       style={{ fontSize: 11, color: '#0d7a5f', cursor: 'pointer', borderBottom: '1px dashed #0d7a5f', userSelect: 'none' }}
