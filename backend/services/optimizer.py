@@ -123,7 +123,7 @@ async def _call_llm(system_prompt: str, user_prompt: str, temperature: float = 0
             {"role": "user", "content": user_prompt},
         ],
         temperature=temperature,
-        max_tokens=2000,
+        max_tokens=5000,
     )
     return response.choices[0].message.content.strip()
 
@@ -147,7 +147,12 @@ async def parse_script_to_shots(raw_script: str) -> list:
         raise ValueError("未配置 r2v_parse 提示词，请先在提示词配置里添加")
 
     result = await _call_llm(system_prompt, raw_script, temperature=0.5)
-    shots = _extract_json(result)
+    try:
+        shots = _extract_json(result)
+    except Exception as e:
+        print(f"[r2v_parse] JSON 解析失败: {e}")
+        print(f"[r2v_parse] LLM 原始输出（前 800 字符）:\n{result[:800]}")
+        raise ValueError(f"LLM 输出 JSON 解析失败: {e}。原始输出前 200 字: {result[:200]}")
 
     if not isinstance(shots, list):
         raise ValueError("LLM 返回的不是 JSON 数组")
@@ -181,7 +186,12 @@ async def optimize_shot(prompt: str, voiceover: str, duration: int) -> dict:
         f"【当前时长】\n{duration} 秒"
     )
     result = await _call_llm(system_prompt, user_input, temperature=0.6)
-    data = _extract_json(result)
+    try:
+        data = _extract_json(result)
+    except Exception as e:
+        print(f"[r2v_optimize] JSON 解析失败: {e}")
+        print(f"[r2v_optimize] LLM 原始输出（前 800 字符）:\n{result[:800]}")
+        raise ValueError(f"LLM 输出 JSON 解析失败: {e}。原始输出前 200 字: {result[:200]}")
 
     if not isinstance(data, dict):
         raise ValueError("LLM 返回的不是 JSON 对象")

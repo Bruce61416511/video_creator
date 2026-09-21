@@ -41,6 +41,7 @@ export default function RefVideo() {
   const [batchRunning, setBatchRunning] = useState(false)
   const [optimizingShotIds, setOptimizingShotIds] = useState(new Set())
   const [parsingScript, setParsingScript] = useState(false)
+  const [expandedBreakdownId, setExpandedBreakdownId] = useState(null)
   const pollRef = useRef({})         // shotId -> intervalId
   const cancelRef = useRef(false)    // 取消批量生成的信号
 
@@ -58,6 +59,9 @@ export default function RefVideo() {
       const patch = { prompt: res.prompt }
       if (res.duration && res.duration !== shot.duration) {
         patch.duration = res.duration
+      }
+      if (res.duration_breakdown) {
+        patch.durationBreakdown = res.duration_breakdown
       }
       updateShot(shotId, patch)
       showMessage('success', `#${shot.index} 已优化${res.duration !== shot.duration ? `（时长 ${shot.duration}s → ${res.duration}s）` : ''}`)
@@ -92,6 +96,9 @@ export default function RefVideo() {
         if (res.duration && res.duration !== shot.duration) {
           patch.duration = res.duration
           durationChanged++
+        }
+        if (res.duration_breakdown) {
+          patch.durationBreakdown = res.duration_breakdown
         }
         updateShot(shot.id, patch)
         successCount++
@@ -458,7 +465,36 @@ export default function RefVideo() {
                   >
                     {shot.duration}s
                   </span>
+                  {shot.durationBreakdown && (
+                    <span
+                      style={{ fontSize: 11, color: '#0d7a5f', cursor: 'pointer', borderBottom: '1px dashed #0d7a5f', userSelect: 'none' }}
+                      onClick={() => setExpandedBreakdownId(prev => prev === shot.id ? null : shot.id)}
+                    >
+                      {expandedBreakdownId === shot.id ? '▾ 收起分解' : 'ⓘ 分解'}
+                    </span>
+                  )}
                 </div>
+                {expandedBreakdownId === shot.id && shot.durationBreakdown && (
+                  <div style={{ marginTop: 8, padding: 10, background: '#f6fbfa', border: '1px solid #d6eae4', borderRadius: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#005d50' }}>分镜 #{shot.index} 时长分解</span>
+                      <button
+                        style={{ fontSize: 11, padding: '2px 8px', color: '#0d7a5f', background: '#fff', border: '1px solid #0d7a5f', borderRadius: 4, cursor: 'pointer' }}
+                        onClick={() => {
+                          navigator.clipboard?.writeText(shot.durationBreakdown)
+                          showMessage('success', '已复制到剪贴板')
+                        }}
+                      >
+                        复制
+                      </button>
+                    </div>
+                    <textarea
+                      readOnly
+                      value={shot.durationBreakdown}
+                      style={{ width: '100%', minHeight: 80, fontSize: 12, lineHeight: 1.5, fontFamily: 'ui-monospace, Menlo, Consolas, monospace', color: '#142528', background: '#fff', border: '1px solid #d6eae4', borderRadius: 6, padding: 8, resize: 'vertical' }}
+                    />
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span style={shotStatusBadgeStyle(shot.status)}>
                     {shot.status === 'pending' && '⏸ 待生成'}

@@ -61,6 +61,7 @@ function buildResultFromLlm(rawScript, llmShots) {
     start: '',
     end: '',
     duration: Number(s.duration) || 5,
+    durationBreakdown: s.duration_breakdown || '',   // LLM 估算的逐项分解（用于调试/展示）
     description: '',           // LLM 已经把描述、镜头规格都润色进 prompt，无需再单独保留
     voiceover: s.voiceover || '',
     shotType: { 景别: '', 镜头运动: '', 机位角度: '' },
