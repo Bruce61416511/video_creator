@@ -1,0 +1,42 @@
+# ================== 依赖（本地 install 重建，不入库）==================
+node_modules/
+venv/
+.venv/
+
+# ================== 编译 / 打包缓存 ==================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+frontend/dist/
+frontend/node_modules/.vite/
+
+# ================== 运行时产物 ==================
+backend/uploads/
+backend/output/
+backend/cookies/
+backend/screenshots/
+backend/*.log
+backend/data.db
+backend/*.sqlite
+
+# ================== 环境 / 敏感 ==================
+.env
+*.env
+.env.*
+
+# 模型配置（含敏感 URL / 默认参数，含历史遗留的 key）
+backend/config/models.json
+
+# 临时脚本（下划线前缀 = 一次性调试/迁移脚本，不入库）
+backend/_*.py
+
+# ================== 系统 ==================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ================== 编辑器 ==================
+.vscode/
+.idea/
+*.swp
