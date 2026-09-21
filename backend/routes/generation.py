@@ -1,6 +1,9 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, List
+import logging
+
+logger = logging.getLogger(__name__)
 
 from services.dashscope_client import (
     submit_t2i, submit_t2v, submit_i2v, submit_r2v, get_task_status
@@ -94,15 +97,19 @@ async def api_i2v(req: I2VRequest):
 
 @router.post("/r2v")
 async def api_r2v(req: R2VRequest):
+    logger.info(f"[api_r2v] Received request: prompt={req.prompt[:30]}..., media_count={len(req.media)}")
     try:
         media_items = [item.model_dump() for item in req.media]
+        logger.info(f"[api_r2v] media_items: {media_items}")
         task_id = await submit_r2v(
             req.prompt,
             media_items,
             req.model_dump(exclude={"prompt", "media"}),
         )
+        logger.info(f"[api_r2v] Task created: {task_id}")
         return {"task_id": task_id, "status": "PENDING"}
     except Exception as e:
+        logger.error(f"[api_r2v] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
