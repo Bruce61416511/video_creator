@@ -44,6 +44,7 @@ export default function RefVideo() {
   const [expandedBreakdownId, setExpandedBreakdownId] = useState(null)
   const [editingDurationId, setEditingDurationId] = useState(null)
   const [editingDurationValue, setEditingDurationValue] = useState('')
+  const [showGlossary, setShowGlossary] = useState(false)
   const pollRef = useRef({})         // shotId -> intervalId
   const cancelRef = useRef(false)    // 取消批量生成的信号
 
@@ -301,10 +302,126 @@ export default function RefVideo() {
   return (
     <div>
       {/* 标题 */}
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#142528' }}>参考视频 · 脚本分镜模式</h2>
-        <span style={{ fontSize: 13, color: '#8c8c8c' }}>粘贴完整脚本 → 一键拆成分镜 → 串行生成每段视频 → 拼接成片</span>
+      <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#142528' }}>参考视频 · 脚本分镜模式</h2>
+          <span style={{ fontSize: 13, color: '#8c8c8c' }}>粘贴完整脚本 → 一键拆成分镜 → 串行生成每段视频 → 拼接成片</span>
+        </div>
+        <button
+          onClick={() => setShowGlossary(true)}
+          style={{ ...btnSecondary, padding: '8px 16px', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          📖 标准话术手册
+        </button>
       </div>
+
+      {/* 标准话术手册 Modal */}
+      {showGlossary && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }} onClick={() => setShowGlossary(false)}>
+          <div style={{ background: '#fff', borderRadius: 12, maxWidth: 800, maxHeight: '90vh', overflow: 'auto', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#005d50' }}>📖 分镜脚本标准话术手册</h3>
+              <button onClick={() => setShowGlossary(false)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #dce9e7', background: '#fff', cursor: 'pointer', fontSize: 13 }}>✕ 关闭</button>
+            </div>
+
+            <div style={{ fontSize: 13, color: '#142528', lineHeight: 1.8 }}>
+              <div style={{ padding: '12px 16px', background: '#f5fbfa', border: '1px solid #dce9e7', borderRadius: 8, marginBottom: 16 }}>
+                <strong>💡 使用说明：</strong>编写分镜脚本时，请尽量使用以下标准术语，以便 LLM 准确理解和生成视频。
+              </div>
+
+              <h4 style={{ margin: '20px 0 10px', fontSize: 16, fontWeight: 700, color: '#005d50', borderBottom: '2px solid #0d7a5f', paddingBottom: 6 }}>一、景别（Shot Size）</h4>
+              <p style={{ margin: '8px 0', color: '#555' }}>景别是指画面中主体的大小范围，决定了观众看到的视角宽窄。</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#f0f7f5' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>标准术语</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>英文</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>大远景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Extreme Long Shot</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>展示环境全貌，人物很小</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>远景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Long Shot</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>展示环境和人物全身</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>全景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Full Shot</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>人物全身，环境适中</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>中景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Medium Shot</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>人物膝盖以上</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>中近景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Medium Close-up</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>人物胸部以上</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>近景</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Close-up</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>人物肩部以上</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>特写</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Big Close-up</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>人物脸部或产品局部</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>大特写</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Extreme Close-up</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>细节（眼睛、嘴唇、logo）</td></tr>
+                </tbody>
+              </table>
+              <div style={{ padding: '8px 12px', background: '#fff8e6', border: '1px solid #ffe4a0', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>
+                <strong>⚠️ 景别变化：</strong>如果需要景别变化，用"<strong>X到Y</strong>"格式，如"近景到特写"、"全景到中景"。不要用"中全景"、"中远景"等非标准术语。
+              </div>
+
+              <h4 style={{ margin: '20px 0 10px', fontSize: 16, fontWeight: 700, color: '#005d50', borderBottom: '2px solid #0d7a5f', paddingBottom: 6 }}>二、镜头运动（Camera Movement）</h4>
+              <p style={{ margin: '8px 0', color: '#555' }}>镜头运动是指拍摄过程中摄像机的移动方式。</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#f0f7f5' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>标准术语</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>英文</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>固定</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Static / Lock-off</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头不动</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>推近</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Push in / Dolly in</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头向主体靠近</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>拉远</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Pull out / Dolly out</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头远离主体</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>左摇</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Pan left</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头水平左转</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>右摇</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Pan right</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头水平右转</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>上摇</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Tilt up</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头垂直上仰</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>下摇</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Tilt down</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头垂直下俯</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>跟随</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Follow</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头跟随主体移动</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>环绕</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Orbit / Arc</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头围绕主体旋转</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>升降</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Crane / Jib</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头垂直升降</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>手持</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Handheld</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>手持拍摄，有晃动感</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>航拍</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Aerial</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>无人机航拍</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>甩镜头</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Whip pan</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>快速摇镜头，产生模糊效果</td></tr>
+                </tbody>
+              </table>
+              <div style={{ padding: '8px 12px', background: '#fff8e6', border: '1px solid #ffe4a0', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>
+                <strong>⚠️ 注意：</strong>"后退"→用"<strong>拉远</strong>"，"前进"→用"<strong>推近</strong>"，"跟焦"→用"<strong>跟随</strong>"，"快速切换"→用"<strong>固定</strong>"（快速切换是剪辑手法，不是镜头运动）。
+              </div>
+
+              <h4 style={{ margin: '20px 0 10px', fontSize: 16, fontWeight: 700, color: '#005d50', borderBottom: '2px solid #0d7a5f', paddingBottom: 6 }}>三、机位角度（Camera Angle）</h4>
+              <p style={{ margin: '8px 0', color: '#555' }}>机位角度是指摄像机相对于主体的位置角度。</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: '#f0f7f5' }}>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>标准术语</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>英文</th>
+                    <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '2px solid #dce9e7', fontWeight: 600 }}>说明</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>平视</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Eye level</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>与主体视线平行</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>俯视</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>High angle</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>从上往下拍</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>仰视</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Low angle</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>从下往上拍</td></tr>
+                  <tr style={{ background: '#fafafa' }}><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>鸟瞰</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Overhead / Top-down</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>正上方垂直往下</td></tr>
+                  <tr><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}><strong>荷兰角</strong></td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>Dutch angle</td><td style={{ padding: '6px 12px', borderBottom: '1px solid #eee' }}>镜头倾斜，产生不稳定感</td></tr>
+                </tbody>
+              </table>
+              <div style={{ padding: '8px 12px', background: '#fff8e6', border: '1px solid #ffe4a0', borderRadius: 6, fontSize: 12, marginBottom: 16 }}>
+                <strong>⚠️ 注意：</strong>"高角度"→用"<strong>俯视</strong>"，"低角度"→用"<strong>仰视</strong>"，"顶部/正上方"→用"<strong>鸟瞰</strong>"。
+              </div>
+
+              <h4 style={{ margin: '20px 0 10px', fontSize: 16, fontWeight: 700, color: '#005d50', borderBottom: '2px solid #0d7a5f', paddingBottom: 6 }}>四、脚本示例</h4>
+              <div style={{ padding: '12px 16px', background: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 6, fontFamily: 'monospace', fontSize: 12, lineHeight: 1.6 }}>
+                <div style={{ color: '#666', marginBottom: 8 }}>✅ 正确写法：</div>
+                <div>景别：<strong>近景到特写</strong> / 镜头运动：<strong>推近</strong> / 机位角度：<strong>俯视</strong></div>
+                <div style={{ marginTop: 8 }}>景别：<strong>中景</strong> / 镜头运动：<strong>固定</strong> / 机位角度：<strong>平视</strong></div>
+                <div style={{ marginTop: 12, color: '#c53030', marginBottom: 8 }}>❌ 错误写法：</div>
+                <div style={{ color: '#c53030' }}>景别：<del>中全景</del> / 镜头运动：<del>手动跟焦</del> / 机位角度：<del>高角度</del></div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 20, textAlign: 'right' }}>
+              <button onClick={() => setShowGlossary(false)} style={{ ...btnPrimary, padding: '8px 20px', fontSize: 13 }}>我知道了</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== 卡片 1：全局素材 ===== */}
       <div style={{ ...cardStyle, marginBottom: 16 }}>
