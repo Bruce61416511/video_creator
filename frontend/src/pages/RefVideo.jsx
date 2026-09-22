@@ -450,10 +450,12 @@ export default function RefVideo() {
       })
 
       if (result.url) {
-        // 构建完整 URL
+        // 存相对路径（后端返回的就是 /uploads/merged_xxx.mp4）。
+        // 之前存的是 window.location.origin + result.url，端口一变链接就整条作废；
+        // 相对路径则由 vite 的 /uploads 代理转发，换端口也照样能打开。
+        setMergedUrl(result.url)
+        // 剪贴板仍然给完整地址，方便直接发出去
         const fullUrl = window.location.origin + result.url
-        setMergedUrl(fullUrl)
-        // 复制到剪贴板
         await navigator.clipboard.writeText(fullUrl)
         showMessage('success', `合并完成！URL 已复制到剪贴板`)
       }
@@ -985,7 +987,7 @@ export default function RefVideo() {
               <div style={{ marginTop: 12, padding: '10px 14px', background: '#e6f7f2', borderRadius: 8, border: '1px solid #b3e0d4' }}>
                 <div style={{ fontSize: 12, color: '#0d7a5f', marginBottom: 6, fontWeight: 600 }}>✅ 合并完成，URL 已复制：</div>
                 <a href={mergedUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#005d50', wordBreak: 'break-all' }}>
-                  {mergedUrl}
+                  {/^https?:\/\//.test(mergedUrl) ? mergedUrl : window.location.origin + mergedUrl}
                 </a>
               </div>
             )}
