@@ -37,8 +37,9 @@ TEMP_MPY*
 *.env
 .env.*
 
-# 模型配置（含敏感 URL / 默认参数，含历史遗留的 key）
-backend/config/models.json
+# 模型配置：改为一并入库（已核实文件内不含任何密钥，只有模型 ID / 默认参数 / LLM 接入地址），
+# 否则新环境 git clone 下来会缺这个文件导致后端起不来。真正的密钥在 .env 里，仍保持忽略。
+# backend/config/models.json  ← 故意不忽略
 
 # 临时脚本（下划线前缀 = 一次性调试/迁移脚本，不入库）
 backend/_*.py
