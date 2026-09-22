@@ -465,6 +465,23 @@ export default function RefVideo() {
     }
   }
 
+  // ===== 复制所有分镜提示词 =====
+  const handleCopyAllPrompts = async () => {
+    if (shots.length === 0) {
+      return showMessage('warning', '没有分镜可复制')
+    }
+    const text = shots
+      .sort((a, b) => a.index - b.index)
+      .map(s => `【分镜${s.index}】(${s.duration}s)\n${s.prompt}\n台词：${s.voiceover || '（无）'}`)
+      .join('\n\n---\n\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      showMessage('success', `已复制 ${shots.length} 个分镜的提示词`)
+    } catch (err) {
+      showMessage('error', '复制失败，请手动复制')
+    }
+  }
+
   // ===== 统计 =====
   const doneCount = shots.filter(s => s.status === 'done').length
   const failedCount = shots.filter(s => s.status === 'failed').length
@@ -906,6 +923,18 @@ export default function RefVideo() {
               )}
             </div>
           ))}
+
+          {/* 复制所有提示词按钮 */}
+          {shots.length > 0 && (
+            <div style={{ marginTop: 12, textAlign: 'right' }}>
+              <button
+                onClick={handleCopyAllPrompts}
+                style={{ ...btnSecondary, padding: '6px 16px', fontSize: 12 }}
+              >
+                📋 复制所有分镜提示词
+              </button>
+            </div>
+          )}
 
           {/* 批量操作 */}
           <div style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 10, border: '1px solid #eaeaea' }}>
