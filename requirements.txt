@@ -8,7 +8,7 @@
 #
 # ⚠️ 系统依赖：moviepy 合并/转码视频需要系统安装 ffmpeg。
 #    - Ubuntu/Debian：apt install -y ffmpeg
-#    - 部署机 116.62.118.71 已预装 ffmpeg 6.1.1，无需重复安装
+#    - 部署机（Ubuntu 24.04）已预装 ffmpeg 6.1.1，无需重复安装
 #    - Windows 开发机若无系统 ffmpeg，由 imageio-ffmpeg 自带二进制兜底
 # =============================================================================
 
@@ -43,6 +43,11 @@ pillow==11.3.0
 proglog==0.1.12
 decorator==5.3.1
 python-dotenv==1.2.3
+
+# ---------- 对象存储：成品归档到阿里云 OSS（可选但建议装上） ----------
+# 仅当 STORAGE_BACKEND=oss 时才会被真正调用，local 模式下不装也能跑。
+# 建议保持安装：这样以后切换存储后端只要改环境变量，不用重建镜像。
+oss2==2.19.1
 
 # 其余传递依赖（starlette / anyio / requests / aiohttp / websocket-client /
 # cryptography / typer / rich / certifi / jiter / sniffio / h11 / click 等）

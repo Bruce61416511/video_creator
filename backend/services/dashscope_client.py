@@ -8,13 +8,17 @@ from typing import Optional
 
 import httpx
 
+from services import storage
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
-UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
+UPLOAD_DIR = storage.UPLOAD_DIR
 
-# 内存中存储任务状态
+# 任务结果的内存缓存：只记最近查过的若干条，避免无上限增长。
+# 查询本身是无状态的（每次都实时问 DashScope），缓存丢了不影响功能，多 worker 也安全。
+_TASKS_CACHE_LIMIT = 200
 _tasks: dict = {}
 
 
@@ -30,27 +34,26 @@ def _is_local_url(url: str) -> bool:
 
 async def _ensure_public_url(url: str) -> str:
     """
-    如果是本地文件路径，上传到 DashScope 获取公网 URL。
-    如果已经是公网 URL，直接返回。
+    把参考素材变成 DashScope 能访问的公网 URL。
+
+    - 已经是公网地址（OSS 对象 / 外部链接）→ 原样返回
+    - 还是 /uploads/xxx 本地路径 → 传到 DashScope 文件接口换一个临时公网地址
+
+    启用 OSS 存储后，上传那一刻拿到的就是公网地址，这里会自然走第一条分支，
+    省掉「再往 DashScope 传一次」的中转。
     """
-    print(f"[DEBUG] _ensure_public_url: {url}")
     if not _is_local_url(url):
-        print(f"[DEBUG] 已是公网 URL，直接返回")
-        return url  # 已经是公网 URL
-    
-    # 拼接完整本地路径
-    filename = url.split("/")[-1]
-    local_path = UPLOAD_DIR / filename
-    print(f"[DEBUG] 本地文件路径: {local_path}")
-    
+        return url  # 已是公网地址，直接用
+
+    local_path = UPLOAD_DIR / url.split("/")[-1]
     if not local_path.exists():
         raise ValueError(f"本地文件不存在: {local_path}")
-    
-    # 上传到 DashScope
+
     from services.uploader import upload_to_dashscope
-    print(f"[DEBUG] 开始上传到 DashScope...")
+
+    logger.info("参考素材在本地，上传到 DashScope 换取公网地址: %s", local_path.name)
     public_url = await upload_to_dashscope(str(local_path))
-    print(f"[DEBUG] 上传成功，获取到公网 URL")
+    logger.info("参考素材公网地址已就绪")
     return public_url
 
 
@@ -232,10 +235,16 @@ async def submit_r2v(prompt: str, media_items: list, params: dict) -> str:
 
 # ========== 任务状态查询 ==========
 
+def _cache_task(task_id: str, result: dict) -> None:
+    """写入内存缓存；超上限时丢掉最早的一条（dict 保持插入顺序）"""
+    _tasks[task_id] = result
+    while len(_tasks) > _TASKS_CACHE_LIMIT:
+        _tasks.pop(next(iter(_tasks)), None)
+
+
 async def get_task_status(task_id: str) -> dict:
     result = await _poll_task(task_id)
-    # 缓存到内存
-    _tasks[task_id] = result
+    _cache_task(task_id, result)
     return result
 
 

@@ -1,13 +1,47 @@
+import hmac
 import json
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 CONFIG_DIR = Path(__file__).parent.parent / "config"
 ENV_PATH = Path(__file__).parent.parent / ".env"
 
 router = APIRouter(prefix="/config")
+
+# 管理令牌：设了之后，远程改 API Key 需要在请求头带 X-Admin-Token。
+# 不设则退化为「只允许服务器本机修改」。
+ADMIN_TOKEN = (os.environ.get("ADMIN_TOKEN") or "").strip()
+
+_TRUSTED_HOSTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def _assert_can_write_secrets(request: Request) -> None:
+    """
+    守卫「写 API Key」这一类高危操作。
+
+    背景：这个接口会把传入的值直接写进服务器磁盘上的 .env 文件。
+    没有守卫时，任何能打开页面的人都可以把 Key 换成自己的、或者直接清空，
+    导致服务不可用。注意这不是「访问控制」—— 普通配置照常开放，只拦这一件事。
+    """
+    if not ADMIN_TOKEN:
+        host = (request.client.host if request.client else "") or ""
+        if host in _TRUSTED_HOSTS:
+            return
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "出于安全考虑，API Key 只允许在服务器本机修改。"
+                "如需远程修改，请在服务器环境变量里设置 ADMIN_TOKEN，"
+                "并在请求头带上 X-Admin-Token。"
+            ),
+        )
+
+    supplied = request.headers.get("X-Admin-Token", "")
+    # 恒定时间比较，避免通过响应耗时逐位猜令牌
+    if not hmac.compare_digest(supplied, ADMIN_TOKEN):
+        raise HTTPException(status_code=403, detail="管理令牌不正确")
 
 
 def _read_json(filename: str) -> dict:
@@ -97,7 +131,15 @@ async def get_models():
 
 
 @router.put("/models")
-async def update_models(data: dict):
+async def update_models(data: dict, request: Request):
+    # 守卫放在 try 之外：它抛的是 HTTPException(403)，若包在 try 里会被下面的
+    # except Exception 吞掉并重新包装成 500，把「没权限」变成含糊的「服务器错误」
+    if any(
+        data.get(f) and not _is_masked(data.get(f, ""))
+        for f in SENSITIVE_KEYS
+    ):
+        _assert_can_write_secrets(request)
+
     try:
         # 把敏感 key 单独写到 .env，不进 models.json
         for field in SENSITIVE_KEYS:
@@ -117,6 +159,9 @@ async def update_models(data: dict):
             current.pop(field, None)
         _write_json("models.json", current)
         return {"status": "ok"}
+    except HTTPException:
+        # 业务异常原样透传，别被下面的兜底重新包装成 500
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -133,5 +178,7 @@ async def update_prompts(data: dict):
     try:
         _write_json("prompts.json", data)
         return {"status": "ok"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
